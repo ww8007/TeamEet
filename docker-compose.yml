@@ -1,0 +1,80 @@
+version: "3.3"
+
+services:
+
+  nginx:
+    image: jwilder/nginx-proxy
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    ports:
+      - 80:80
+      - 443:443
+    restart: always
+  
+  react:
+    image: node:alpine
+    # ports:
+    #   - 3000:3000
+    expose:
+      - 3000
+    working_dir: /app
+    volumes:
+      - "./frontend:/app"
+    environment: 
+      - VIRTUAL_HOST=himyteamnew.ml, www.himyteamnew.ml
+      - NODE_ENV=development 
+      - CHOKIDAR_USEPOLLING=true # HMR을 위해 필요한 설정
+    stdin_open: true             # react-script 3.4.1 부터 필요
+    tty: true
+    entrypoint: ["yarn", "start"]
+
+
+  web:
+    build:
+      context: .
+      dockerfile: ./backend/app/Dockerfile
+    ports:
+      - 8000:8000
+    # command: python manage.py runserver 127.0.0.1:8000
+    networks:
+      - app-tier
+    restart: always
+    volumes:
+      - ./backend/app:/app
+    env_file:
+      # - ./backend/.env.dev
+      - ./backend/.env
+    # environment:
+    #   - SECRET_KEY=${SECRET_KEY}
+
+  migration:
+    build:
+      context: .
+      dockerfile: ./backend/app/Dockerfile
+    # image: app
+    command: sh -c "python3 manage.py migrate"
+    env_file:
+      # - ./backend/.env.dev
+      - ./backend/.env
+    volumes:
+      - ./backend/app:/app
+    # links:
+    #     - mysql_db
+    depends_on:
+      - make_migrations
+
+  make_migrations:
+    build:
+      context: .
+      dockerfile: ./backend/app/Dockerfile
+    # image: app
+    command: sh -c "python3 manage.py makemigrations"
+    env_file:
+      # - ./backend/.env.dev
+      - ./backend/.env
+    volumes:
+      - ./backend/app:/app
+
+networks:
+  app-tier:
+    driver: bridge
